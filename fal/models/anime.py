@@ -1,52 +1,82 @@
 from __future__ import annotations
 
-from fal.models import Base
+from typing import TYPE_CHECKING, TypeVar, Type, Set, Optional, cast
 
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
-from sqlalchemy.orm import relationship
+import attr
+import sqlalchemy.orm.exc
 
-from typing import TYPE_CHECKING, Optional
+from fal.models import OrmFacade
+from fal import orm
+
 if TYPE_CHECKING:
-    from fal.models import PlanToWatch, Season, AnimeWeeklyStat, TeamWeeklyAnime
-    from sqlalchemy.orm import relationship, Session
+    from fal.models import Season
+    from sqlalchemy.orm import Session
+
+T = TypeVar("T", bound="Anime")
 
 
-class Anime(Base):
-    __tablename__ = "anime"
+@attr.s(auto_attribs=True)
+class Anime(OrmFacade):
+    _entity: orm.Anime
+    mal_id: int
+    names: Set[str]
+    restricted: bool = False
+    eligible: bool = True
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    season_id = Column(Integer, ForeignKey("season.id"))
-    season = relationship("Season", back_populates="anime")
-    derivative = Column(Boolean, default=0)
-    eligible = Column(Boolean, default=1)
-    alias = Column(String, nullable=True)
+    def get_entity(self) -> orm.Base:
+        return self._entity
 
-    plan_to_watch = relationship("PlanToWatch", back_populates="anime")
-    anime_weekly_stats = relationship(
-        "AnimeWeeklyStat", back_populates="anime")
-    team_weekly_anime = relationship("TeamWeeklyAnime", back_populates="anime")
+    @classmethod
+    def get_by_name(cls: Type[T], name: str, session: Session) -> T:
+        """
+        Get anime from database based on name.
 
-    def __repr__(self) -> str:
-        return f"{self.name} - {self.id} from season id {self.season_id}"
+        Raises sqlalchemy.orm.exc.NoResultFound if no anime of that name found.
+        Raises sqlalchemy.orm.exc.MultipleResultsFound if multiple object identities are returned.
+        """
 
-    @staticmethod
-    def add_anime_to_database(id: int, name: str, season: Season, session: Session) -> None:
-        """ Adds new anime row to database if it doesn't already exist """
-        query = session.query(Anime).filter(Anime.id == id)
-        anime = query.one_or_none()
+        try:
+            orm_anime = session.query(orm.Anime).filter(orm.Anime.name == name).one()
+        except sqlalchemy.orm.exc.NoResultFound:
+            orm_anime = session.query(orm.Anime).filter(orm.Anime.alias == name).one()
 
-        if anime:
-            print(f'{anime} already exists in database')
-        else:
-            anime = Anime(id=id, name=name, season_id=season.id)
-            print(f'Adding {anime} to database')
-            session.add(anime)
+        return cls.from_orm_anime(orm_anime, session)
 
-    @staticmethod
-    def get_anime_from_database_by_name(name: str, session: Session) -> Optional[Anime]:
-        """Get anime from database based on name. Return None if it's not there."""
-        query = session.query(Anime).filter(Anime.name == name)
-        anime = query.one_or_none()
+    @classmethod
+    def from_orm_anime(cls: Type[T], orm_anime: orm.Anime, session: Session) -> T:
+        """
+        Conversion constructor from the orm class to our facade class
+        """
 
-        return anime
+        assert orm_anime.name  # sqlalchemy for some reason thinks name is optional
+        names: Set[str] = {orm_anime.name}
+        if orm_anime.alias:
+            names.add(orm_anime.alias)
+
+        return cls(
+            entity=orm_anime,
+            session=session,
+            mal_id=orm_anime.id,
+            names=names,
+            restricted=orm_anime.restricted,
+            eligible=orm_anime.eligible,
+        )
+
+    @classmethod
+    def create(
+        cls: Type[T], mal_id: int, name: str, season: Season, session: Session
+    ) -> T:
+        """
+        Adds new anime to database. Returns Anime object.
+
+        Raises sqlalchemy.exc.IntegrityError if anime already exists.
+        """
+        orm_anime = orm.Anime(id=mal_id, name=name, season_id=season._entity.id)
+        session.add(orm_anime)
+        session.commit()
+
+        return cls(entity=orm_anime, session=session, mal_id=mal_id, names={name})
+
+    def add_alias(self, alias: str) -> None:
+        self.names.add(alias)
+        self._entity.alias = alias

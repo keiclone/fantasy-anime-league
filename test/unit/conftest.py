@@ -6,18 +6,21 @@ import pytest
 import factories
 import sqlalchemy
 
-import fal.models
+import fal.orm
 
-register(factories.SeasonFactory)
-register(factories.AnimeFactory)
-register(factories.TeamFactory)
+register(factories.OrmSeasonFactory)
+register(factories.OrmAnimeFactory)
+register(factories.OrmTeamFactory)
 register(factories.TeamWeeklyAnimeFactory)
+register(factories.TeamWeeklyPointsFactory)
+register(factories.AnimeWeeklyStatFactory)
+register(factories.SeasonFactory)
 
 
 @pytest.fixture()
 def session_factory():
-    engine = sqlalchemy.create_engine('sqlite://', echo=False)
-    fal.models.Base.metadata.create_all(engine)
+    engine = sqlalchemy.create_engine("sqlite://", echo=False)
+    fal.orm.Base.metadata.create_all(engine)
     factories.session_factory.configure(bind=engine)
     return factories.session_factory
 
@@ -44,11 +47,7 @@ def session_scope(session_factory):
 
 
 class Config(object):
-    def __init__(
-        self,
-        sections: Iterable[str],
-        kv: Mapping
-    ):
+    def __init__(self, sections: Iterable[str], kv: Mapping):
         self.sections = sections
         self.kv = kv
 
@@ -57,17 +56,23 @@ class Config(object):
             if fallback is not None:
                 return fallback
             else:
-                raise ValueError(f'''
+                raise ValueError(
+                    f"""
                     {section} section not mocked out in config mock,
-                    nor is fallback set''')
+                    nor is fallback set"""
+                )
         if key in self.kv:
             return self.kv[key]
         print(self.kv)
-        raise KeyError(f'Unexpected key {key} passed into config')
+        if fallback is not None:
+            return fallback
+        else:
+            raise KeyError(f"Unexpected key {key} passed into config")
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def config_functor():
     def _config_functor(sections, kv):
         return Config(sections, kv)
+
     return _config_functor

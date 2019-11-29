@@ -2,13 +2,26 @@
 
 [![Travis (.org)](https://img.shields.io/travis/fantasy-anime-league/fantasy-anime-league.svg?style=flat-square)](https://travis-ci.org/fantasy-anime-league/fantasy-anime-league)
 [![Codecov](https://img.shields.io/codecov/c/github/fantasy-anime-league/fantasy-anime-league.svg?style=flat-square)](https://codecov.io/gh/fantasy-anime-league/fantasy-anime-league/)
+![Python version](https://img.shields.io/github/pipenv/locked/python-version/fantasy-anime-league/fantasy-anime-league)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg?style=flat-square)](https://github.com/ambv/black)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
 ## Setup
 
-### pip requirements
+### [pipenv](https://pipenv.kennethreitz.org/en/latest/install/#installing-pipenv) requirements
 
 ```shell
-$ pip install -r requirements.txt
+# if pipenv is not already installed
+$ pip install --user pipenv
+...
+# if end user
+$ pipenv install
+...
+# if dev
+$ pipenv install --dev
+...
+# activate the Pipenv shell
+$ pipenv shell
 ...
 ```
 
@@ -21,20 +34,38 @@ $ pip install -r requirements.txt
 
 * After tunnelling with PuTTY, you will be asked for login credentials. Adding your public key for SSH access will make your login process slightly easier.
 * You may wish to use a desktop client such as [HeidiSQL](https://www.heidisql.com/) for convenience.
-  * Contact the owners Fantasy Anime League for an individual db user account to be created for you.
+  * Contact the owners of Fantasy Anime League for an individual db user account to be created for you.
 
-## Tests
+## Order to run scripts
 
-### Unit and Integration Tests
+### Preseason (before registration)
 
 ```shell
-# In root of repository
-$ python -m pytest
+$ python run_fal.py --collect-series
+$ python run_fal.py --ptw-counter
 ```
 
-### Type Checking
+### Preseason (after registration)
 
 ```shell
-$ mypy fal run_fal.py
-...
+$ python run_fal.py --load-teams
+$ python run_fal.py --headcount
+$ python run_fal.py --team-overview
+$ python run_fal.py --team-stats
+$ python run_fal.py --team-dist
+```
+
+### Midseason
+
+* Save backup of database first!
+
+```shell
+$ python run_fal.py --init-week
+$ python run_fal.py --bench-swap
+$ python run_fal.py --load-aces
+$ python run_fal.py --anime-weekly-stats
+$ python run_fal.py --team-score
+
+# If you are confident
+$ python run_fal.py --init-week --bench-swap --load-aces --anime-weekly-stats --team-score
 ```
